@@ -1,0 +1,17 @@
+{
+  "name": "devgeniem/acf-flexible-templates",
+  "type": "wordpress-plugin",
+  "license": "GPL-3.0",
+  "description": "Create ready made templates for your Flexible Content pages.",
+  "authors": [
+    {
+      "name": "Miika Arponen",
+      "email": "miika.arponen@geniem.com",
+      "homepage" : "https://github.com/Nomafin"
+    }
+  ],
+  "require": {
+    "php": ">=5.6",
+    "composer/installers": "v1.0.12"
+  }
+}
