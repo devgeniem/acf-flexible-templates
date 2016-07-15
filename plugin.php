@@ -3,11 +3,12 @@
 Plugin Name: Advanced Custom Fields: Flexible Layout Templates
 Plugin URI: https://github.com/devgeniem/acf-flexible-templates
 Description: Create ready made templates for your Flexible Content pages.
-Version: 0.0.1
+Version: 0.0.2
 Author: Miika Arponen / Geniem
 Author URI: https://github.com/devgeniem
 License: GPLv2 or later
 License URI: http://www.gnu.org/licenses/gpl-2.0.html
+Text Domain: acf-flexible-templates
 */
 
 class ACF_Flexible_Templates {
@@ -21,6 +22,12 @@ class ACF_Flexible_Templates {
 		add_action( "add_meta_boxes", array( $this, "page_attributes" ) );
 		
 		add_action( "save_post", array( $this, "save_page_attributes" ) );
+
+		add_action( "admin_menu", array( $this, "menu" ) );
+
+		add_action( "admin_init", array( $this, "handle_creations" ) );
+
+		add_action( "admin_notices", array( $this, "admin_notice" ) );
 	}
 
 	public function register_post_type() {
@@ -43,7 +50,7 @@ class ACF_Flexible_Templates {
 		$args = array(
 			'labels'                   => $labels,
 			'hierarchical'        => false,
-			'description'         => 'Create layout templates for ACF Flexible Content Type',
+			'description'         => __("Create layout templates for ACF Flexible Content Type", "acf-flexible-templates"),
 			'taxonomies'          => array(),
 			'public'              => true,
 			'show_ui'             => true,
@@ -81,7 +88,7 @@ class ACF_Flexible_Templates {
 
 		    add_meta_box(
 		        'acf-fl-page-attributes',
-		        __('Page Attributes'),
+		        __("Page Attributes", "acf-flexible-templates"),
 		        array( $this, 'page_attributes_callback' ), 
 		        'layout-template', 
 		        'side', 
@@ -90,7 +97,7 @@ class ACF_Flexible_Templates {
 
 		    add_meta_box(
 		    	'acf-fl-submitdiv',
-		    	__('Save'),
+		    	__("Save", "acf-flexible-templates"),
 		    	array( $this, 'page_attributes_save_box' ),
 		    	'layout-template',
 		    	'side',
@@ -115,7 +122,9 @@ class ACF_Flexible_Templates {
 
 	public function save_page_attributes( $post_id ) {
 		if ( "layout-template" == get_post_type( $post_id ) ) {
-			update_post_meta( $post_id, "_wp_page_template", $_REQUEST["_wp_page_template"] );
+			if ( isset( $_REQUEST["_wp_page_template"] ) ) {
+				update_post_meta( $post_id, "_wp_page_template", $_REQUEST["_wp_page_template"] );
+			}
 		}
 	}
 
@@ -130,12 +139,102 @@ class ACF_Flexible_Templates {
 		<?php
 	}
 
-	/** TODO
-	*
-	*	- templatesta luonti Uusi sivu -alavalikoksi
-	*	- disabloi komponenttien luonti / poisto -rasti
-	* 
-	*/
+	public function menu() {
+		$templates = $this->get_templates();
+
+		foreach ( $templates as $template ) {
+			add_submenu_page( "edit.php?post_type=page", __("New page from ", "acf-flexible-templates") . $template->post_title, __("New page from ", "acf-flexible-templates") . $template->post_title, "edit_posts", "acf_ft_new_" . $template->post_name, "__return_false" );
+		}
+	}
+
+	public function create_post_from_template( $post_id ) {
+		$old_post = get_post( $post_id );
+
+		if ( $old_post->post_type !== "layout-template" || is_null( $old_post ) ) {
+			return false;
+		}
+
+		$new_post = array(
+			"post_author" => get_current_user_id(),
+			"post_content" => $old_post->post_content,
+			"post_excerpt" => $old_post->post_excerpt,
+			"menu_order" => $old_post->menu_order,
+			"comment_status" => $old_post->comment_status,
+			"ping_status" => $old_post->ping_status,
+			"post_mime_type" => $old_post->post_mime_type,
+			"post_status" => "draft",
+			"post_title" => __("Created from ", "acf-flexible-templates") . $old_post->post_title,
+			"post_type" => "page"
+		);
+
+		$new_post_id = wp_insert_post( $new_post );
+
+		$old_post_meta = get_metadata( "post", $post_id );
+
+		foreach ( $old_post_meta as $key => $value ) {
+			if ( "key" !== "_edit_lock" ) {
+				foreach ( $value as $val ) {
+					update_metadata( "post", $new_post_id, $key, $value[0] );
+				}
+			}
+		}
+
+		add_metadata( "post", $new_post_id, "_acf_ft_template_id", $post_id );
+
+		return $new_post_id;
+	}
+
+	public function get_templates() {
+		if ( ! isset( $this->templates ) ) {
+			$templates = get_posts( array(
+				"post_type" => "layout-template",
+			) );
+
+			$return = array();
+
+			foreach ( $templates as $template ) {
+				$return[ $template->post_name ] = $template;
+			}
+
+			$this->templates = $return;
+		}
+
+		return $this->templates;
+	}
+
+	public function handle_creations() {
+		if ( preg_match( "/acf_ft_new_(.+)/", $_SERVER["QUERY_STRING"], $matches ) ) {
+			if ( count( $matches ) > 1 ) {
+				$slug = $matches[1];
+
+				$templates = $this->get_templates();
+
+				if ( isset( $templates[ $slug ] ) ) {
+
+					$id = $this->create_post_from_template( $templates[ $slug ]->ID );
+
+					wp_redirect( admin_url( "post.php?post=" . $id ."&action=edit&acf_ft_from_template=true" ) );
+				}
+				else {
+					?>
+					<div class="notice notice-success is-dismissible">
+				        <p><?php _e( "The template you asked for does not exist.", "acf-flexible-templates" ); ?></p>
+				    </div>
+				    <?php
+				}
+			}
+		}
+	}
+
+	public function admin_notice() {
+		if ( isset( $_GET["acf_ft_from_template"] ) ) {
+			?>
+			<div class="notice notice-success is-dismissible">
+		        <p><?php _e( "This page has already been created as a draft. If you decide not to use it, you have to delete it.", "acf-flexible-templates" ); ?></p>
+		    </div>
+		    <?php
+		}
+	}
 }
 
 new ACF_Flexible_Templates();
