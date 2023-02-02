@@ -3,7 +3,7 @@
 Plugin Name: Advanced Custom Fields: Flexible Layout Templates
 Plugin URI: https://github.com/devgeniem/acf-flexible-templates
 Description: Create ready made templates for your Flexible Content pages.
-Version: 0.0.3
+Version: 0.0.4
 Author: Miika Arponen / Geniem
 Author URI: https://github.com/devgeniem
 License: GPLv2 or later
